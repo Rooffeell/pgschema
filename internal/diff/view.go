@@ -248,7 +248,7 @@ func generateModifyViewsSQL(diffs []*viewDiff, targetSchema string, collector *d
 			continue
 		}
 
-		// Check if only the comment changed and definition is identical
+		// Check if only metadata changed and definition is identical
 		// Both IRs come from pg_get_viewdef() at the same PostgreSQL version, so string comparison is sufficient
 		definitionsEqual := diff.Old.Definition == diff.New.Definition
 		optionsEqual := viewOptionsEqual(diff.Old.Options, diff.New.Options)
@@ -262,8 +262,16 @@ func generateModifyViewsSQL(diffs []*viewDiff, targetSchema string, collector *d
 		hasTriggerChanges := len(diff.AddedTriggers) > 0 || len(diff.DroppedTriggers) > 0 || len(diff.ModifiedTriggers) > 0
 		triggerOnlyChange := hasTriggerChanges && definitionsEqual && optionsEqual && !diff.CommentChanged && !hasIndexChanges
 
-		// Handle non-structural changes (comment-only, index-only, or trigger-only)
-		if commentOnlyChange || indexOnlyChange || triggerOnlyChange {
+		// Check if only options changed (e.g., security_invoker, security_barrier)
+		optionsOnlyChange := diff.OptionsChanged && definitionsEqual && diff.Old.Materialized == diff.New.Materialized
+
+		// Handle non-structural changes (comment-only, index-only, trigger-only, or options-only)
+		if commentOnlyChange || indexOnlyChange || triggerOnlyChange || optionsOnlyChange {
+			// Generate ALTER VIEW SET/RESET for option changes
+			if diff.OptionsChanged {
+				generateViewOptionChangesSQL(diff, targetSchema, collector)
+			}
+
 			// Only generate COMMENT ON VIEW statement if comment actually changed
 			if diff.CommentChanged {
 				viewName := qualifyEntityName(diff.New.Schema, diff.New.Name, targetSchema)
@@ -512,6 +520,84 @@ func generateViewSQL(view *ir.View, targetSchema string) string {
 
 	// Use the view definition as-is - it has already been normalized
 	return fmt.Sprintf("%s %s%s AS\n%s;", createClause, viewName, withClause, view.Definition)
+}
+
+// generateViewOptionChangesSQL generates ALTER VIEW SET/RESET statements for option changes.
+// Options are stored as sorted []string in "key=value" format (from pg_class.reloptions).
+func generateViewOptionChangesSQL(diff *viewDiff, targetSchema string, collector *diffCollector) {
+	viewName := qualifyEntityName(diff.New.Schema, diff.New.Name, targetSchema)
+
+	diffType := DiffTypeView
+	viewKeyword := "VIEW"
+	if diff.New.Materialized {
+		diffType = DiffTypeMaterializedView
+		viewKeyword = "MATERIALIZED VIEW"
+	}
+
+	// Build maps from "key=value" slices for comparison
+	oldMap := optionsToMap(diff.Old.Options)
+	newMap := optionsToMap(diff.New.Options)
+
+	// Collect options to SET (added or changed)
+	var setOptions []string
+	for _, opt := range diff.New.Options {
+		key := optionKey(opt)
+		if oldMap[key] != newMap[key] {
+			setOptions = append(setOptions, opt)
+		}
+	}
+
+	// Collect options to RESET (removed)
+	var resetOptions []string
+	for _, opt := range diff.Old.Options {
+		key := optionKey(opt)
+		if _, exists := newMap[key]; !exists {
+			resetOptions = append(resetOptions, key)
+		}
+	}
+
+	path := fmt.Sprintf("%s.%s", diff.New.Schema, diff.New.Name)
+
+	if len(setOptions) > 0 {
+		sql := fmt.Sprintf("ALTER %s %s SET (%s);", viewKeyword, viewName, strings.Join(setOptions, ", "))
+		collector.collect(&diffContext{
+			Type:                diffType,
+			Operation:           DiffOperationAlter,
+			Path:                path,
+			Source:              diff,
+			CanRunInTransaction: true,
+		}, sql)
+	}
+
+	if len(resetOptions) > 0 {
+		sql := fmt.Sprintf("ALTER %s %s RESET (%s);", viewKeyword, viewName, strings.Join(resetOptions, ", "))
+		collector.collect(&diffContext{
+			Type:                diffType,
+			Operation:           DiffOperationAlter,
+			Path:                path,
+			Source:              diff,
+			CanRunInTransaction: true,
+		}, sql)
+	}
+}
+
+// optionsToMap converts a []string of "key=value" options to a map[string]string.
+func optionsToMap(options []string) map[string]string {
+	m := make(map[string]string, len(options))
+	for _, opt := range options {
+		if idx := strings.Index(opt, "="); idx >= 0 {
+			m[opt[:idx]] = opt[idx+1:]
+		}
+	}
+	return m
+}
+
+// optionKey extracts the key from a "key=value" option string.
+func optionKey(opt string) string {
+	if idx := strings.Index(opt, "="); idx >= 0 {
+		return opt[:idx]
+	}
+	return opt
 }
 
 // diffViewTriggers computes added, dropped, and modified triggers between two views

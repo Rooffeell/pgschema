@@ -1,0 +1,24 @@
+Plan: 4 to modify.
+
+Summary by type:
+  views: 3 to modify
+  materialized views: 1 to modify
+
+Views:
+  ~ employee_emails
+  ~ employee_names
+  ~ employee_secure
+
+Materialized views:
+  ~ employee_summary
+
+DDL to be executed:
+--------------------------------------------------
+
+ALTER VIEW employee_emails SET (security_invoker=true);
+
+ALTER VIEW employee_names SET (security_invoker=true);
+
+ALTER VIEW employee_secure RESET (security_invoker);
+
+ALTER MATERIALIZED VIEW employee_summary SET (fillfactor=80);
