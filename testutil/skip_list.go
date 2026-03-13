@@ -61,9 +61,17 @@ var skipListRequiresExtension = []string{
 	"create_table/issue_295_pgvector_typmod",
 }
 
+// skipListPG14 defines test cases that should be skipped for PostgreSQL 14 only.
+//
+// Reason for skipping:
+// These tests use features not available in PostgreSQL 14 (e.g., NULLS NOT DISTINCT is PG15+).
+var skipListPG14 = []string{
+	"create_index/add_index",
+}
+
 // skipListForVersion maps PostgreSQL major versions to their skip lists.
 var skipListForVersion = map[int][]string{
-	14: skipListPG14_15,
+	14: append(append([]string(nil), skipListPG14_15...), skipListPG14...),
 	15: skipListPG14_15,
 }
 
@@ -101,7 +109,7 @@ func ShouldSkipTest(t *testing.T, testName string, majorVersion int) {
 		patternNormalized := strings.ReplaceAll(pattern, "/", "_")
 
 		if testName == patternNormalized || testName == pattern {
-			t.Skipf("Skipping test %q on PostgreSQL %d due to pg_get_viewdef() formatting differences (non-consequential)", testName, majorVersion)
+			t.Skipf("Skipping test %q on PostgreSQL %d (unsupported feature or formatting differences)", testName, majorVersion)
 		}
 	}
 }
