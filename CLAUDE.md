@@ -288,6 +288,8 @@ Each test case contains: `old.sql` (starting state), `new.sql` (desired state), 
 - Schema examples: `bytebase/`, `employee/`, `sakila/`, `tenant/`
 - Issue regressions: `issue_125_*`, `issue_133_*`, `issue_183_*`, `issue_191_*`, `issue_252_*`, `issue_275_*`, `issue_307_*`, `issue_318_*`, `issue_320_*`, `issue_78_*`, `issue_80_*`, `issue_82_*`, `issue_83_*`
 
+**pgdump.sql version gotcha**: `pgdump.sql` files are executed against all supported PostgreSQL versions (14-18). Version-specific SET parameters like `SET transaction_timeout = 0;` (PG 17+) must be commented out, e.g. `-- SET transaction_timeout = 0;`, or the test will fail on older versions.
+
 ### Include Tests (`testdata/include/`)
 
 8 categories: `domains/`, `functions/`, `materialized_views/`, `procedures/`, `sequences/`, `tables/`, `types/`, `views/`
