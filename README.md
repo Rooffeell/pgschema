@@ -24,6 +24,12 @@ pgschema dump → edit schema.sql → pgschema plan → pgschema apply
 - **Plan**: Diff your edited schema against the live database, generate migration DDL
 - **Apply**: Execute with concurrent change detection, transaction-adaptive execution, and lock timeout control
 
+See more details in the [introduction blog post](https://www.pgschema.com/blog/pgschema-postgres-declarative-schema-migration-like-terraform).
+
+Watch in action:
+
+[![asciicast](https://asciinema.org/a/vXHygDMUkGYsF6nmz2h0ONEQC.svg)](https://asciinema.org/a/vXHygDMUkGYsF6nmz2h0ONEQC)
+
 ## Why pgschema
 
 ### State-based, not migration-file-based
@@ -63,12 +69,6 @@ Most state-based tools spin up a temporary "shadow" database to validate migrati
 Fair question. We have no current plans to charge for pgschema.
 
 pgschema is sponsored by [Bytebase](https://www.bytebase.com), a commercial database DevSecOps platform. Bytebase covers the needs of teams that require controls beyond schema migration — data access control, data masking, audit logging, and multi-database management across an organization.
-
-See more details in the [introduction blog post](https://www.pgschema.com/blog/pgschema-postgres-declarative-schema-migration-like-terraform).
-
-Watch in action:
-
-[![asciicast](https://asciinema.org/a/vXHygDMUkGYsF6nmz2h0ONEQC.svg)](https://asciinema.org/a/vXHygDMUkGYsF6nmz2h0ONEQC)
 
 ## Supported Schema Objects
 
